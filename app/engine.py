@@ -270,12 +270,21 @@ class PromptOptimizationEngine:
             latency_ms = gen_result.get("latency_ms", 0)
             usage = gen_result.get("usage", {})
             mode = gen_result.get("mode", "live")
-        elif "fallback" in gen_result:
+        elif gen_result.get("fallback"):
             # Offline heuristic fallback (auth/network errors while a key is present)
             fallback = gen_result["fallback"]
             optimized_text = fallback["text"]
             latency_ms = fallback.get("latency_ms", 0)
             usage = fallback.get("usage", {})
+            mode = "offline_fallback"
+        elif gen_result.get("status") == "error":
+            # Provider returned a hard error with no usable fallback (e.g. a
+            # missing API key for an OpenAI/Anthropic-backed request). Gracefully
+            # degrade to the offline heuristic optimizer so the request succeeds.
+            fb = NvidiaNIMClient()._mock_offline_optimization(augmented_prompt)
+            optimized_text = fb["text"]
+            latency_ms = fb.get("latency_ms", 0)
+            usage = fb.get("usage", {})
             mode = "offline_fallback"
         else:
             raise RuntimeError(gen_result.get("message", "Generation failed."))

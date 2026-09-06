@@ -30,7 +30,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Outputs
   const promptOutputBlock = document.getElementById('promptOutputBlock');
   const copyPromptBtn = document.getElementById('copyPromptBtn');
-  const exportJsonBtn = document.getElementById('exportJsonBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const exportMenu = document.getElementById('exportMenu');
+
+  // Analytics
+  const anGenerations = document.getElementById('anGenerations');
+  const anAvgReduction = document.getElementById('anAvgReduction');
+  const anTokensSaved = document.getElementById('anTokensSaved');
+  const anAvgLatency = document.getElementById('anAvgLatency');
+  const anModelRows = document.getElementById('anModelRows');
+  const resetAnalyticsBtn = document.getElementById('resetAnalyticsBtn');
 
   // Diff
   const diffVerboseTokens = document.getElementById('diffVerboseTokens');
@@ -206,16 +215,80 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Export JSON Handler
-  exportJsonBtn.addEventListener('click', () => {
-    if (!state.currentResult) return;
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.currentResult, null, 2));
-    const dlAnchorElem = document.createElement('a');
-    dlAnchorElem.setAttribute("href", dataStr);
-    dlAnchorElem.setAttribute("download", `figma-prompt-${Date.now()}.json`);
-    dlAnchorElem.click();
-    showToast('JSON exported successfully');
+  // Export Dropdown Toggle
+  exportBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportMenu.classList.toggle('open');
   });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.export-dropdown')) {
+      exportMenu.classList.remove('open');
+    }
+  });
+
+  // Export Handlers (multi-format: JSON, Markdown, Figma Plugin, Plain Text)
+  const EXPORT_SPECS = {
+    json:        { ext: 'json',          mime: 'application/json',       btn: 'JSON exported successfully' },
+    markdown:    { ext: 'md',            mime: 'text/markdown',         btn: 'Markdown doc exported' },
+    figma_plugin:{ ext: 'js',            mime: 'application/javascript', btn: 'Figma plugin script exported' },
+    plain_text:  { ext: 'txt',           mime: 'text/plain',            btn: 'Plain text exported' }
+  };
+
+  exportMenu.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!state.currentResult) {
+        showToast('Generate a prompt first before exporting');
+        return;
+      }
+      const fmt = btn.getAttribute('data-export');
+      const spec = EXPORT_SPECS[fmt];
+      if (!spec) return;
+
+      let content;
+      // figma_plugin and markdown are produced server-side for consistent formatting
+      if (fmt === 'figma_plugin' || fmt === 'markdown') {
+        const blob = new Blob([JSON.stringify(state.currentResult)], { type: 'application/json' });
+        const payload = { format: fmt, result: state.currentResult };
+        try {
+          const res = await fetch('/api/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!data.success) {
+            showToast(data.error || 'Export failed');
+            return;
+          }
+          content = data.content;
+        } catch (err) {
+          // Offline graceful fallback to client-side generation
+          content = JSON.stringify(state.currentResult, null, 2);
+        }
+      } else if (fmt === 'json') {
+        content = JSON.stringify(state.currentResult, null, 2);
+      } else {
+        content = state.currentResult.optimized_prompt || '';
+      }
+
+      downloadContent(content, spec.mime, `figma-prompt-${Date.now()}.${spec.ext}`);
+      exportMenu.classList.remove('open');
+      showToast(spec.btn);
+    });
+  });
+
+  function downloadContent(content, mime, filename) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
   // Clear History
   clearHistoryBtn.addEventListener('click', () => {
@@ -385,6 +458,10 @@ document.addEventListener('DOMContentLoaded', () => {
 <p style="margin-top:8px; opacity:0.8;">Equivalent standard conversational LLM prompt requires <em>${metrics.equivalent_verbose_tokens || 0} tokens</em> with verbose prose and lacks strict layout coordinates.</p>`;
 
     diffOptimizedText.innerHTML = `<pre style="font-family:var(--font-mono); font-size:0.75rem;">${escapeHtml(data.optimized_prompt)}</pre>`;
+
+    // Record into session analytics (cumulative, persisted in localStorage)
+    trackAnalytics(metrics, data.model_used || state.selectedModel);
+    renderAnalytics();
   }
 
   function syntaxHighlight(text) {
@@ -498,4 +575,70 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  // ---------------- Session Analytics ----------------
+  const ANALYTICS_KEY = 'figma_opt_analytics';
+
+  function loadAnalytics() {
+    const def = { generations: 0, totalTokensSaved: 0, totalLatencyMs: 0, reductionsPct: [], models: {} };
+    try {
+      return Object.assign(def, JSON.parse(localStorage.getItem(ANALYTICS_KEY) || '{}'));
+    } catch (e) { return def; }
+  }
+
+  function trackAnalytics(metrics, modelId) {
+    const model = modelId || 'unknown';
+    const saved = Number(metrics.tokens_saved) || 0;
+    const latency = Number(metrics.latency_ms) || 0;
+    const pct = Number(metrics.reduction_percentage) || 0;
+
+    const a = loadAnalytics();
+    a.generations += 1;
+    a.totalTokensSaved += saved;
+    a.totalLatencyMs += latency;
+    a.reductionsPct.push(pct);
+    if (a.reductionsPct.length > 100) a.reductionsPct.shift();
+    if (!a.models[model]) a.models[model] = { count: 0, tokensSaved: 0 };
+    a.models[model].count += 1;
+    a.models[model].tokensSaved += saved;
+    localStorage.setItem(ANALYTICS_KEY, JSON.stringify(a));
+  }
+
+  function renderAnalytics() {
+    const a = loadAnalytics();
+    anGenerations.textContent = a.generations;
+    anTokensSaved.textContent = a.totalTokensSaved;
+
+    const avgReduction = a.reductionsPct.length
+      ? Math.round(a.reductionsPct.reduce((s, v) => s + v, 0) / a.reductionsPct.length)
+      : 0;
+    anAvgReduction.textContent = `${avgReduction}%`;
+
+    const avgLatency = a.generations ? Math.round(a.totalLatencyMs / a.generations) : 0;
+    anAvgLatency.textContent = avgLatency;
+
+    const modelKeys = Object.keys(a.models);
+    if (!modelKeys.length) {
+      anModelRows.innerHTML = '<tr><td colspan="3" class="analytics-empty">No data yet — generate a prompt to see usage.</td></tr>';
+      return;
+    }
+    anModelRows.innerHTML = modelKeys
+      .sort((x, y) => a.models[y].count - a.models[x].count)
+      .map(m => `
+        <tr>
+          <td>${escapeHtml(m)}</td>
+          <td>${a.models[m].count}</td>
+          <td>${a.models[m].tokensSaved}</td>
+        </tr>
+      `).join('');
+  }
+
+  resetAnalyticsBtn.addEventListener('click', () => {
+    localStorage.removeItem(ANALYTICS_KEY);
+    renderAnalytics();
+    showToast('Analytics reset');
+  });
+
+  // Initial render
+  renderAnalytics();
 });

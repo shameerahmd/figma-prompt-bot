@@ -232,6 +232,9 @@
           <button class="tab-btn" data-tab="diffTab">
             <i data-lucide="git-compare"></i> Token Diff
           </button>
+          <button class="tab-btn" data-tab="analyticsTab">
+            <i data-lucide="bar-chart-3"></i> Analytics
+          </button>
         </div>
 
         <!-- Tab 1: Formatted Prompt Output -->
@@ -243,9 +246,18 @@
                 <button id="copyPromptBtn" class="btn btn-sm btn-primary">
                   <i data-lucide="copy"></i> Copy Prompt
                 </button>
-                <button id="exportJsonBtn" class="btn btn-sm btn-secondary">
-                  <i data-lucide="download"></i> JSON
-                </button>
+                <div class="export-dropdown">
+                  <button id="exportBtn" class="btn btn-sm btn-secondary">
+                    <i data-lucide="download"></i> Export
+                    <i data-lucide="chevron-down" style="width:13px;height:13px;"></i>
+                  </button>
+                  <div class="export-menu" id="exportMenu">
+                    <button data-export="json"><i data-lucide="braces"></i> JSON (Full Result)</button>
+                    <button data-export="markdown"><i data-lucide="file-text"></i> Markdown Doc</button>
+                    <button data-export="figma_plugin"><i data-lucide="figma"></i> Figma Plugin Script</button>
+                    <button data-export="plain_text"><i data-lucide="align-left"></i> Plain Text</button>
+                  </div>
+                </div>
               </div>
             </div>
             <pre class="prompt-output" id="promptOutputBlock"><code>// Your optimized, token-efficient Figma AI prompt will appear here...
@@ -287,6 +299,43 @@
               <div class="diff-box diff-good" id="diffOptimizedText">
                 <p>High-density structural taxonomy gives direct layout, auto-layout directions, component specs, and design tokens in 60-75% fewer tokens.</p>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Analytics Dashboard -->
+        <div id="analyticsTab" class="tab-pane">
+          <div class="analytics-dashboard">
+            <div class="analytics-header">
+              <h3><i data-lucide="bar-chart-3"></i> Session Performance</h3>
+              <button id="resetAnalyticsBtn" class="btn btn-ghost btn-sm">Reset</button>
+            </div>
+            <div class="analytics-grid">
+              <div class="metric-card">
+                <span class="metric-title">Total Generations</span>
+                <div class="metric-val"><span id="anGenerations">0</span></div>
+              </div>
+              <div class="metric-card">
+                <span class="metric-title">Avg Token Reduction</span>
+                <div class="metric-val"><span id="anAvgReduction">0%</span></div>
+              </div>
+              <div class="metric-card">
+                <span class="metric-title">Total Tokens Saved</span>
+                <div class="metric-val"><span id="anTokensSaved">0</span></div>
+              </div>
+              <div class="metric-card">
+                <span class="metric-title">Avg Latency</span>
+                <div class="metric-val"><span id="anAvgLatency">0</span><span class="metric-sub">ms</span></div>
+              </div>
+            </div>
+            <div class="analytics-model-table">
+              <h4>Model Usage Breakdown</h4>
+              <table class="analytics-table">
+                <thead>
+                  <tr><th>Model</th><th>Generations</th><th>Tokens Saved</th></tr>
+                </thead>
+                <tbody id="anModelRows"><tr><td colspan="3" class="analytics-empty">No data yet — generate a prompt to see usage.</td></tr></tbody>
+              </table>
             </div>
           </div>
         </div>

@@ -137,6 +137,101 @@ class PromptOptimizationEngine:
             "notice": gen_result.get("message") if gen_result.get("status") == "warning" else None
         }
 
+    def _build_augmented_prompt(
+        self,
+        user_input: str,
+        device_id: str,
+        style_id: str,
+        archetype_id: Optional[str],
+        custom_components: Optional[list]
+    ) -> str:
+        constraints = []
+        device = DEVICE_PRESETS.get(device_id)
+        if device:
+            constraints.append(f"Target Device: {device['name']} ({device['frame_token']})")
+
+        style = STYLE_PRESETS.get(style_id)
+        if style:
+            constraints.append(f"Design Theme: {style['name']} - {style['theme_token']}, Radius={style['radius']}")
+
+        archetype = ARCHETYPE_TEMPLATES.get(archetype_id)
+        if archetype:
+            constraints.append(f"UI Archetype: {archetype['name']} (Key Elements: {', '.join(archetype['default_components'])})")
+
+        if custom_components:
+            clean_components = [c for c in custom_components if c]
+            if clean_components:
+                constraints.append(f"Required Components: {', '.join(clean_components)}")
+
+        constraint_block = "\n".join([f"- {c}" for c in constraints])
+        augmented_prompt = f"USER REQUIREMENT:\n{user_input.strip()}"
+        if constraints:
+            augmented_prompt += f"\n\nDESIGN CONSTRAINTS & TOKENS:\n{constraint_block}"
+        return augmented_prompt
+
+    def optimize_stream(
+        self,
+        user_input: str,
+        device_id: str = "desktop",
+        style_id: str = "saas_modern",
+        archetype_id: Optional[str] = None,
+        custom_components: Optional[list] = None,
+        model_id: str = "meta/llama-3.1-8b-instruct",
+        temperature: float = 0.1,
+        api_key_override: Optional[str] = None
+    ):
+        """
+        Generator streaming tokens as they arrive from NVIDIA and ultimately a
+        single "result" event with the full optimized prompt + metrics. Yields:
+          {"type": "token", "text": "<delta>"}
+          {"type": "result", ...same shape as optimize()...}
+        """
+        active_client = (
+            NvidiaNIMClient(api_key=api_key_override)
+            if api_key_override
+            else self.client
+        )
+        augmented_prompt = self._build_augmented_prompt(
+            user_input=user_input,
+            device_id=device_id,
+            style_id=style_id,
+            archetype_id=archetype_id,
+            custom_components=custom_components
+        )
+
+        for evt in active_client.generate_stream(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=augmented_prompt,
+            model=model_id,
+            temperature=temperature
+        ):
+            if evt.get("type") == "token":
+                yield {"type": "token", "text": evt["text"]}
+                continue
+
+            if evt.get("type") == "done":
+                optimized_text = evt.get("text", "")
+                metrics = calculate_compression_metrics(
+                    raw_input=user_input,
+                    optimized_prompt=optimized_text,
+                    actual_api_usage=evt.get("usage", {}),
+                    latency_ms=evt.get("latency_ms", 0)
+                )
+                yield {
+                    "type": "result",
+                    "success": True,
+                    "raw_input": user_input,
+                    "optimized_prompt": optimized_text,
+                    "figma_formatted": self._format_for_figma(optimized_text),
+                    "metrics": metrics,
+                    "mode": evt.get("mode", "live"),
+                    "model_used": evt.get("model", model_id),
+                    "device": device_id,
+                    "style": style_id,
+                    "notice": evt.get("notice")
+                }
+                return
+
     def _format_for_figma(self, prompt_text: str) -> str:
         """
         Formats the bracket-notated prompt into a clean string ready for Figma AI / First Draft.

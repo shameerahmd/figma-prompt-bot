@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('History cleared');
   });
 
-  // Main Optimization Request
+  // Main Optimization Request (Server-Sent-Event streaming)
   async function handleOptimize() {
     const prompt = userPromptInput.value.trim();
     if (!prompt) {
@@ -243,39 +243,123 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setLoading(true);
 
-    try {
-      const payload = {
-        prompt: prompt,
-        device: state.selectedDevice,
-        style: state.selectedStyle,
-        model: state.selectedModel,
-        components: checkedComponents,
-        api_key: state.apiKey || undefined
-      };
+    const payload = {
+      prompt: prompt,
+      device: state.selectedDevice,
+      style: state.selectedStyle,
+      model: state.selectedModel,
+      components: checkedComponents,
+      api_key: state.apiKey || undefined
+    };
 
-      const res = await fetch('/api/optimize', {
+    const streamBox = document.createElement('div');
+    streamBox.className = 'streaming-live';
+    streamBox.innerHTML = `<span class="streaming-part"></span><span class="streaming-caret"></span>`;
+    promptOutputBlock.innerHTML = '';
+    promptOutputBlock.appendChild(streamBox);
+    const streamingPart = streamBox.querySelector('.streaming-part');
+
+    let partial = '';
+
+    try {
+      const res = await fetch('/api/optimize/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-
-      if (!res.ok || data.success === false) {
-        throw new Error(data.error || 'Optimization request failed');
+      // Non-stream response (e.g. 400/500 JSON error)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Request failed (${res.status})`);
       }
 
-      state.currentResult = data;
-      displayResults(data);
-      saveToHistory(prompt, data);
-      showToast('Prompt optimized successfully!');
+      // Fallback: plain JSON (network/proxy that drops SSE)
+      if (!res.body) {
+        const data = await res.json();
+        if (data.success === false) throw new Error(data.error || 'Optimization request failed');
+        state.currentResult = data;
+        displayResults(data);
+        saveToHistory(prompt, data);
+        showToast('Prompt optimized successfully!');
+        return;
+      }
+
+      // Consume SSE stream
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const updateLive = () => {
+        streamingPart.textContent = partial || 'Generating…';
+        streamBox.scrollIntoView({ block: 'nearest' });
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        // SSE frames are separated by blank lines
+        let idx;
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const frame = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          for (const evt of parseEventFrame(frame)) {
+            if (evt.type === 'token') {
+              partial += evt.text;
+              updateLive();
+            } else if (evt.type === 'result') {
+              state.currentResult = evt;
+              displayResults(evt);
+              saveToHistory(prompt, evt);
+            } else if (evt.type === 'error') {
+              throw new Error(evt.error || 'Optimization failed');
+            }
+          }
+        }
+      }
+
+      if (state.currentResult) {
+        showToast('Prompt optimized successfully!');
+      } else {
+        throw new Error('No result returned from server');
+      }
 
     } catch (err) {
       console.error(err);
       showToast(`Error: ${err.message}`);
     } finally {
       setLoading(false);
+      streamBox.remove();
+      if (!state.currentResult) {
+        showToast('No output generated. Check your API key or try again.');
+      }
     }
+  }
+
+  // Split an SSE frame into parsed events (handles multi-data frames)
+  function parseEventFrame(frame) {
+    const events = [];
+    let dataLines = [];
+    const lines = frame.split('\n');
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).trim());
+      } else if (line.startsWith('event:')) {
+        // Ignore event type; we dispatch by payload.
+      } else if (line === '') {
+        // blank; flush collected data
+        if (dataLines.length) {
+          try { events.push(JSON.parse(dataLines.join('\n'))); } catch (e) {}
+          dataLines = [];
+        }
+      }
+    }
+    if (dataLines.length) {
+      try { events.push(JSON.parse(dataLines.join('\n'))); } catch (e) {}
+    }
+    return events;
   }
 
   function displayResults(data) {

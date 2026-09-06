@@ -153,6 +153,128 @@ class NvidiaNIMClient:
                 "fallback": self._mock_offline_optimization(user_prompt)
             }
 
+    def generate_stream(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str = "meta/llama-3.1-8b-instruct",
+        temperature: float = 0.1,
+        max_tokens: int = 350
+    ):
+        """
+        Streaming generation via NVIDIA NIM (SSE). Yields two event shapes:
+          - {"type": "token", "text": "<delta>"}   (partial tokens as they arrive)
+          - {"type": "done", ...full result...}    (final, including fallback)
+
+        This keeps the FIRST byte flowing back to Vercel almost immediately, so
+        a slow generation does not trip Vercel's hard serverless timeout.
+        """
+        if not self.is_configured():
+            fb = self._mock_offline_optimization(user_prompt)
+            yield {
+                "type": "done",
+                "text": fb["text"],
+                "latency_ms": fb.get("latency_ms", 45),
+                "usage": fb.get("usage", {}),
+                "model": fb.get("model"),
+                "mode": fb.get("mode"),
+                "notice": None
+            }
+            return
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream"
+        }
+
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "top_p": 0.9,
+            "stream": True
+        }
+
+        start_time = time.time()
+        try:
+            with requests.post(
+                NVIDIA_API_URL,
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=(10, 60)
+            ) as resp:
+                if resp.status_code == 200:
+                    full = []
+                    for raw in resp.iter_lines(decode_unicode=True):
+                        if not raw:
+                            continue
+                        if raw.startswith("data:"):
+                            data = raw[len("data:"):].strip()
+                            if data == "[DONE]":
+                                break
+                            try:
+                                obj = json.loads(data)
+                                delta = obj["choices"][0]["delta"].get("content", "")
+                            except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+                                continue
+                            if delta:
+                                full.append(delta)
+                                yield {"type": "token", "text": delta}
+
+                    text = "".join(full).strip()
+                    latency_ms = int((time.time() - start_time) * 1000)
+                    usage = {
+                        "input": len(user_prompt.split()),
+                        "output": len(text.split()),
+                        "total": len(user_prompt.split()) + len(text.split())
+                    }
+                    yield {
+                        "type": "done",
+                        "text": text,
+                        "latency_ms": latency_ms,
+                        "usage": usage,
+                        "model": model,
+                        "mode": "nvidia_nim_stream",
+                        "notice": None
+                    }
+                else:
+                    error_code = "AUTH_ERROR" if resp.status_code == 401 else f"HTTP_{resp.status_code}"
+                    message = (
+                        "Invalid NVIDIA API Key. Please verify your nvapi-... key."
+                        if resp.status_code == 401
+                        else f"NVIDIA API Error ({resp.status_code})"
+                    )
+                    fb = self._mock_offline_optimization(user_prompt)
+                    yield {
+                        "type": "done",
+                        "text": fb["text"],
+                        "latency_ms": fb.get("latency_ms", 45),
+                        "usage": fb.get("usage", {}),
+                        "model": fb.get("model"),
+                        "mode": "offline_fallback",
+                        "notice": f"{message} Using offline heuristic optimizer.",
+                        "error_code": error_code
+                    }
+
+        except requests.exceptions.RequestException as e:
+            fb = self._mock_offline_optimization(user_prompt)
+            yield {
+                "type": "done",
+                "text": fb["text"],
+                "latency_ms": fb.get("latency_ms", 45),
+                "usage": fb.get("usage", {}),
+                "model": fb.get("model"),
+                "mode": "offline_fallback",
+                "notice": f"Could not reach NVIDIA endpoint: {str(e)}. Using offline heuristic optimizer.",
+                "error_code": "NETWORK_UNAVAILABLE"
+            }
+
     def _mock_offline_optimization(self, user_prompt: str) -> Dict[str, Any]:
         """
         Deterministic, local rule-based optimizer for offline demonstration & testing.

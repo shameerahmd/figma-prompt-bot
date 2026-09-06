@@ -1263,3 +1263,40 @@ body {
   from { transform: translateY(15px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* Streaming Live Output */
+.streaming-live {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.streaming-live .streaming-part {
+  color: var(--text-primary);
+}
+
+.streaming-live .streaming-part:empty::before {
+  content: "Generating prompt…";
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.streaming-live .streaming-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 2px;
+  background-color: var(--accent-glow-amber);
+  box-shadow: 0 0 6px var(--accent-glow-amber-light);
+  animation: caretPulse 0.9s ease-in-out infinite;
+}
+
+@keyframes caretPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}

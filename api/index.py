@@ -63,9 +63,75 @@ class handler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"success": False, "error": "Endpoint not found"})
 
+    def _send_sse(self, data: dict):
+        """Write one Server-Sent Event frame and flush it to the client."""
+        payload = f"data: {json.dumps(data)}\n\n".encode("utf-8")
+        self.wfile.write(payload)
+        self.wfile.flush()
+
+    def _open_sse_stream(self):
+        """Send SSE headers so buffering is disabled and tokens stream live."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        self.wfile.flush()
+
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path == "/api/optimize/stream":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length)
+
+            try:
+                data = json.loads(body.decode("utf-8"))
+            except Exception as e:
+                self._send_json(400, {"success": False, "error": f"Invalid JSON: {str(e)}"})
+                return
+
+            user_input = data.get("prompt", "").strip()
+            if not user_input:
+                self._send_json(400, {"success": False, "error": "Field 'prompt' is required"})
+                return
+
+            device_id = data.get("device", "desktop")
+            style_id = data.get("style", "saas_modern")
+            archetype_id = data.get("archetype")
+            custom_components = data.get("components", [])
+            model_id = data.get("model", "meta/llama-3.1-8b-instruct")
+            temperature = float(data.get("temperature", 0.1))
+            api_key = data.get("api_key") or os.environ.get("NVIDIA_API_KEY")
+
+            try:
+                self._open_sse_stream()
+                for evt in engine.optimize_stream(
+                    user_input=user_input,
+                    device_id=device_id,
+                    style_id=style_id,
+                    archetype_id=archetype_id,
+                    custom_components=custom_components,
+                    model_id=model_id,
+                    temperature=temperature,
+                    api_key_override=api_key
+                ):
+                    self._send_sse(evt)
+                self._send_sse({"type": "done_stream"})
+            except Exception as e:
+                self._send_sse({
+                    "type": "error",
+                    "success": False,
+                    "error": f"Optimization failed: {str(e)}"
+                })
+            finally:
+                self.wfile.flush()
+            return
 
         if path == "/api/optimize":
             content_length = int(self.headers.get("Content-Length", 0))

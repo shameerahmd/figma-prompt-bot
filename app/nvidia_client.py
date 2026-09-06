@@ -8,6 +8,13 @@ import json
 from typing import Dict, Any, List, Optional
 import requests
 
+# Load .env for local development (harmless no-op on Vercel, which uses env vars)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 

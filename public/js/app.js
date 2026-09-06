@@ -51,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const apiKeyInput = document.getElementById('apiKeyInput');
   const toggleKeyVisibility = document.getElementById('toggleKeyVisibility');
 
+  // How-To Modal
+  const howToModal = document.getElementById('howToModal');
+  const howToFigmaBtn = document.getElementById('howToFigmaBtn');
+  const closeHowToBtn = document.getElementById('closeHowToBtn');
+  const closeHowToFooterBtn = document.getElementById('closeHowToFooterBtn');
+
   // Theme Toggle
   const themeToggleBtn = document.getElementById('themeToggleBtn');
 
@@ -132,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function initTheme() {
-    const saved = localStorage.getItem('figma_opt_theme') || 'dark';
+    const saved = localStorage.getItem('figma_opt_theme') || 'light';
     document.documentElement.setAttribute('data-theme', saved);
   }
 
@@ -142,16 +148,16 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsModal.classList.add('open');
   });
 
-  const closeModal = () => settingsModal.classList.remove('open');
-  closeSettingsBtn.addEventListener('click', closeModal);
-  cancelSettingsBtn.addEventListener('click', closeModal);
+  const closeSettings = () => settingsModal.classList.remove('open');
+  closeSettingsBtn.addEventListener('click', closeSettings);
+  cancelSettingsBtn.addEventListener('click', closeSettings);
 
   saveSettingsBtn.addEventListener('click', () => {
     const key = apiKeyInput.value.trim();
     state.apiKey = key;
     localStorage.setItem('figma_opt_api_key', key);
     updateStatusBadge();
-    closeModal();
+    closeSettings();
     showToast(key ? 'NVIDIA API Key saved' : 'Key cleared (using Demo Mode)');
   });
 
@@ -163,6 +169,22 @@ document.addEventListener('DOMContentLoaded', () => {
       apiKeyInput.type = 'password';
       toggleKeyVisibility.textContent = 'Show';
     }
+  });
+
+  // Event Listeners: How To Use Modal
+  if (howToFigmaBtn) {
+    howToFigmaBtn.addEventListener('click', () => {
+      howToModal.classList.add('open');
+    });
+  }
+  const closeHowTo = () => howToModal.classList.remove('open');
+  if (closeHowToBtn) closeHowToBtn.addEventListener('click', closeHowTo);
+  if (closeHowToFooterBtn) closeHowToFooterBtn.addEventListener('click', closeHowTo);
+
+  // Close modals on outside click
+  window.addEventListener('click', (e) => {
+    if (e.target === settingsModal) closeSettings();
+    if (e.target === howToModal) closeHowTo();
   });
 
   // Keyboard shortcut: Ctrl + Enter
@@ -365,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
     toast.className = 'toast';
-    toast.innerHTML = `<i data-lucide="check-circle" style="color:var(--success)"></i> <span>${escapeHtml(message)}</span>`;
+    toast.innerHTML = `<i data-lucide="check" style="width:14px;height:14px;"></i> <span>${escapeHtml(message)}</span>`;
     container.appendChild(toast);
     if (window.lucide) lucide.createIcons();
 

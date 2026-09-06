@@ -96,13 +96,15 @@ class PromptOptimizationEngine:
             temperature=temperature
         )
 
-        # Handle fallback or success
-        if gen_result.get("status") in ["success", "warning"]:
+        # Handle success or fallback
+        if "text" in gen_result:
+            # Live NVIDIA NIM success
             optimized_text = gen_result["text"]
             latency_ms = gen_result.get("latency_ms", 0)
             usage = gen_result.get("usage", {})
             mode = gen_result.get("mode", "live")
         elif "fallback" in gen_result:
+            # Offline heuristic fallback (auth/network errors while a key is present)
             fallback = gen_result["fallback"]
             optimized_text = fallback["text"]
             latency_ms = fallback.get("latency_ms", 0)

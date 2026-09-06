@@ -1,0 +1,15 @@
+# Exclude environment secrets from Vercel deployment
+.env
+.env.local
+
+# Exclude local test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Keep local source/demo server files out of serverless bundle
+server.py
+server.js
+tests/
+Dockerfile
+docker-compose.yml

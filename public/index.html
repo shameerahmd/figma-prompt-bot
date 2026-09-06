@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Figma AI Prompt Optimizer | Reduce Tokens, Maximize Design Precision</title>
+  <meta name="description" content="AI-based prompt compressor & generator for Figma AI. Transforms raw UI ideas into ultra-dense, token-efficient design prompts powered by NVIDIA NIM.">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <!-- App Container -->
+  <div class="app-layout">
+
+    <!-- Top Navigation -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-logo">
+          <i data-lucide="layers" class="icon-brand"></i>
+        </div>
+        <div class="brand-text">
+          <h1>Figma AI <span class="gradient-text">Prompt Optimizer</span></h1>
+          <span class="badge badge-subtle">Powered by NVIDIA NIM</span>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <!-- Model Selector -->
+        <div class="select-wrapper">
+          <i data-lucide="cpu" class="select-icon"></i>
+          <select id="modelSelect" class="nav-select" title="Choose LLM Model">
+            <option value="meta/llama-3.1-8b-instruct" selected>Llama 3.1 8B (Fast & Compact)</option>
+            <option value="mistralai/mixtral-8x7b-instruct-v0.1">Mixtral 8x7B (Precision UI)</option>
+            <option value="nvidia/nemotron-mini-4b-instruct">Nemotron Mini 4B (Low Latency)</option>
+            <option value="google/gemma-2-9b-it">Gemma 2 9B IT</option>
+          </select>
+        </div>
+
+        <!-- Connection Status Indicator -->
+        <div id="connectionStatus" class="status-chip chip-offline" title="Connection mode">
+          <span class="status-dot"></span>
+          <span class="status-label">Demo Mode</span>
+        </div>
+
+        <!-- API Key Settings Button -->
+        <button id="openSettingsBtn" class="btn btn-secondary btn-icon-only" title="NVIDIA API Key Settings">
+          <i data-lucide="key"></i>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button id="themeToggleBtn" class="btn btn-secondary btn-icon-only" title="Toggle Dark/Light Mode">
+          <i data-lucide="sun" class="sun-icon"></i>
+          <i data-lucide="moon" class="moon-icon"></i>
+        </button>
+
+        <!-- GitHub Link -->
+        <a href="https://github.com" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-icon-only" title="View Source on GitHub">
+          <i data-lucide="github"></i>
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <main class="main-content">
+
+      <!-- Left Panel: Input & Controls -->
+      <section class="panel input-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <i data-lucide="sparkles" class="icon-accent"></i>
+            <h2>UI/UX Requirements</h2>
+          </div>
+          <span class="token-counter" id="inputTokenCount">0 tokens</span>
+        </div>
+
+        <!-- Quick Template Chips -->
+        <div class="quick-chips">
+          <span class="chip-label">Quick Prompts:</span>
+          <button class="chip" data-prompt="Modern crypto analytics dashboard with portfolio chart, 24h gainers table, and quick send/swap action bar">Crypto Dashboard</button>
+          <button class="chip" data-prompt="Mobile food delivery restaurant page with categories scroll, food cards with photo & price, and sticky bottom cart summary">Food Delivery App</button>
+          <button class="chip" data-prompt="SaaS authentication modal with social logins, email/password inputs, remember me checkbox, and forgot password link">Auth Modal</button>
+          <button class="chip" data-prompt="E-commerce product detail page with image carousel, size/color variant chips, customer rating stars, and buy button">Product Detail</button>
+        </div>
+
+        <!-- User Prompt Text Area -->
+        <div class="input-group">
+          <textarea
+            id="userPromptInput"
+            class="textarea-prompt"
+            placeholder="Describe your UI/UX requirements in plain English...&#10;&#10;e.g. 'I want a modern dark-mode analytics dashboard for an AI platform showing credit usage, token charts, active API keys table, and quick billing actions.'"
+            rows="5"
+          ></textarea>
+        </div>
+
+        <!-- Presets Configuration Grid -->
+        <div class="controls-accordion">
+
+          <!-- Device Selection -->
+          <div class="control-section">
+            <label class="section-label">
+              <i data-lucide="smartphone"></i> Target Device Frame
+            </label>
+            <div class="device-grid" id="deviceGrid">
+              <button class="device-card active" data-device="desktop">
+                <i data-lucide="monitor"></i>
+                <span class="dev-name">Desktop</span>
+                <span class="dev-res">1440px</span>
+              </button>
+              <button class="device-card" data-device="mobile">
+                <i data-lucide="smartphone"></i>
+                <span class="dev-name">Mobile</span>
+                <span class="dev-res">375px</span>
+              </button>
+              <button class="device-card" data-device="tablet">
+                <i data-lucide="tablet"></i>
+                <span class="dev-name">Tablet</span>
+                <span class="dev-res">834px</span>
+              </button>
+              <button class="device-card" data-device="watch">
+                <i data-lucide="watch"></i>
+                <span class="dev-name">Watch</span>
+                <span class="dev-res">390px</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Aesthetic & Theme Selection -->
+          <div class="control-section">
+            <label class="section-label">
+              <i data-lucide="palette"></i> Design Theme & Aesthetic
+            </label>
+            <div class="style-grid" id="styleGrid">
+              <button class="style-card active" data-style="saas_modern">
+                <div class="style-swatch swatch-saas"></div>
+                <span>SaaS Modern</span>
+              </button>
+              <button class="style-card" data-style="minimal_dark">
+                <div class="style-swatch swatch-dark"></div>
+                <span>Minimal Dark</span>
+              </button>
+              <button class="style-card" data-style="clean_light">
+                <div class="style-swatch swatch-light"></div>
+                <span>Clean Light</span>
+              </button>
+              <button class="style-card" data-style="glassmorphism">
+                <div class="style-swatch swatch-glass"></div>
+                <span>Glassmorphism</span>
+              </button>
+              <button class="style-card" data-style="neo_brutalist">
+                <div class="style-swatch swatch-brutalist"></div>
+                <span>Neo-Brutalist</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Required UI Components -->
+          <div class="control-section">
+            <label class="section-label">
+              <i data-lucide="component"></i> Essential Components to Enforce
+            </label>
+            <div class="component-tags" id="componentTags">
+              <label class="tag-checkbox"><input type="checkbox" value="SidebarNav" checked><span>Sidebar Nav</span></label>
+              <label class="tag-checkbox"><input type="checkbox" value="MetricCards(3-4)" checked><span>Metric Cards</span></label>
+              <label class="tag-checkbox"><input type="checkbox" value="InteractiveCharts" checked><span>Charts</span></label>
+              <label class="tag-checkbox"><input type="checkbox" value="DataTableWithFilters"><span>Data Table</span></label>
+              <label class="tag-checkbox"><input type="checkbox" value="StickyFooterCTA"><span>Sticky Footer CTA</span></label>
+              <label class="tag-checkbox"><input type="checkbox" value="ModalDialog"><span>Modal</span></label>
+              <label class="tag-checkbox"><input type="checkbox" value="SegmentedFilterControl"><span>Filter Bar</span></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <div class="action-footer">
+          <button id="optimizeBtn" class="btn btn-primary btn-glow">
+            <i data-lucide="zap"></i>
+            <span>Generate Optimized Figma Prompt</span>
+            <kbd class="kbd-shortcut">Ctrl + ↵</kbd>
+          </button>
+        </div>
+      </section>
+
+      <!-- Right Panel: Output & Visualizer -->
+      <section class="panel output-panel">
+
+        <!-- Metrics Bar -->
+        <div class="metrics-bar" id="metricsBar">
+          <div class="metric-card">
+            <span class="metric-title">Token Reduction</span>
+            <div class="metric-val text-success">
+              <i data-lucide="trending-down"></i>
+              <span id="metricReduction">0%</span>
+            </div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">Tokens Saved</span>
+            <div class="metric-val">
+              <span id="metricSaved">0</span>
+              <span class="metric-sub">tokens</span>
+            </div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">Optimized Size</span>
+            <div class="metric-val">
+              <span id="metricOutputTokens">0</span>
+              <span class="metric-sub">tokens</span>
+            </div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-title">Generation Latency</span>
+            <div class="metric-val">
+              <span id="metricLatency">0</span>
+              <span class="metric-sub">ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Output Tabs -->
+        <div class="tabs-header">
+          <button class="tab-btn active" data-tab="promptTab">
+            <i data-lucide="file-code"></i> Figma AI Prompt
+          </button>
+          <button class="tab-btn" data-tab="previewTab">
+            <i data-lucide="layout"></i> Wireframe Preview
+          </button>
+          <button class="tab-btn" data-tab="diffTab">
+            <i data-lucide="git-compare"></i> Token Efficiency Diff
+          </button>
+        </div>
+
+        <!-- Tab 1: Formatted Prompt Output -->
+        <div id="promptTab" class="tab-pane active">
+          <div class="output-box-wrapper">
+            <div class="output-toolbar">
+              <span class="output-format-badge">Figma AI Format [Declarative]</span>
+              <div class="toolbar-actions">
+                <button id="copyPromptBtn" class="btn btn-sm btn-primary">
+                  <i data-lucide="copy"></i> Copy Prompt
+                </button>
+                <button id="exportJsonBtn" class="btn btn-sm btn-secondary">
+                  <i data-lucide="download"></i> JSON
+                </button>
+              </div>
+            </div>
+            <pre class="prompt-output" id="promptOutputBlock"><code>// Your optimized, token-efficient Figma AI prompt will appear here...
+// Click "Generate Optimized Figma Prompt" or press Ctrl+Enter to start.</code></pre>
+          </div>
+        </div>
+
+        <!-- Tab 2: Interactive Wireframe Visualizer -->
+        <div id="previewTab" class="tab-pane">
+          <div class="visualizer-container" id="visualizerCanvas">
+            <div class="device-mockup" id="deviceMockupFrame">
+              <div class="mockup-header">
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="mockup-dot"></span>
+                <span class="mockup-title" id="mockupTitle">Figma Frame Preview</span>
+              </div>
+              <div class="mockup-body" id="mockupBody">
+                <div class="empty-state">
+                  <i data-lucide="monitor" class="icon-large"></i>
+                  <p>Generate a prompt to see its interactive wireframe structure here</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Token Diff & Analytics -->
+        <div id="diffTab" class="tab-pane">
+          <div class="diff-container">
+            <div class="diff-column">
+              <h3>Traditional Verbose Prompt (~<span id="diffVerboseTokens">0</span> tokens)</h3>
+              <div class="diff-box diff-bad" id="diffVerboseText">
+                <p>Natural language prompts contain extensive conversational filler ("Please make", "I would like", "Can you add a bright shiny button") that consumes generation tokens and confuses layout spatial reasoning.</p>
+              </div>
+            </div>
+            <div class="diff-column">
+              <h3>Optimized Bracket Notation (~<span id="diffOptimizedTokens">0</span> tokens)</h3>
+              <div class="diff-box diff-good" id="diffOptimizedText">
+                <p>High-density structural taxonomy gives direct layout, auto-layout directions, component specs, and design tokens in 60-70% fewer tokens.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History Drawer -->
+        <div class="history-section">
+          <div class="history-header">
+            <h3><i data-lucide="history"></i> Recent Generations</h3>
+            <button id="clearHistoryBtn" class="btn btn-ghost btn-sm">Clear History</button>
+          </div>
+          <div class="history-list" id="historyList">
+            <p class="history-empty">No previous prompts saved in this session.</p>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Settings Modal -->
+    <div class="modal-backdrop" id="settingsModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            <i data-lucide="key" class="icon-accent"></i>
+            <h3>NVIDIA NIM Configuration</h3>
+          </div>
+          <button id="closeSettingsBtn" class="btn btn-ghost btn-icon-only">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">
+            Enter your NVIDIA API Key to enable high-speed LLM inference. Your key is stored locally in your browser and sent securely only to the NVIDIA API.
+          </p>
+          <div class="form-group">
+            <label for="apiKeyInput">NVIDIA API Key (Starts with <code>nvapi-...</code>)</label>
+            <div class="input-with-action">
+              <input type="password" id="apiKeyInput" class="form-input" placeholder="nvapi-xxxxxxxxxxxxxxxxxxxxxxxx">
+              <button id="toggleKeyVisibility" class="btn btn-ghost btn-sm" type="button">Show</button>
+            </div>
+            <span class="form-help">
+              Don't have a key? Get free credits at <a href="https://build.nvidia.com" target="_blank" rel="noopener">build.nvidia.com</a>.
+            </span>
+          </div>
+
+          <div class="settings-features">
+            <h4>Optimization Pipeline Settings</h4>
+            <div class="setting-row">
+              <span>Low-Temperature Determinism (0.1)</span>
+              <span class="badge badge-success">Enabled</span>
+            </div>
+            <div class="setting-row">
+              <span>Automatic BPE Token Compression</span>
+              <span class="badge badge-success">Active</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelSettingsBtn" class="btn btn-secondary">Cancel</button>
+          <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/presets.js"></script>
+  <script src="js/visualizer.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+  </script>
+</body>
+</html>

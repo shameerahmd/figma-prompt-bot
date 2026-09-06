@@ -1,0 +1,23 @@
+{
+  "name": "figma-ai-prompt-generator",
+  "version": "1.0.0",
+  "description": "AI-based token-efficient prompt optimizer for Figma AI powered by NVIDIA NIM",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "py:start": "python3 server.py",
+    "test": "python3 tests/test_engine.py"
+  },
+  "keywords": [
+    "figma",
+    "figma-ai",
+    "prompt-engineering",
+    "token-optimization",
+    "nvidia-nim",
+    "ui-ux",
+    "generative-ui"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}
